@@ -64,6 +64,10 @@ var winVmNicName = '${winJmphostName}NIC'
 var winVmStorageName = 'hubwinvm${uniqueString(resourceGroup().id)}'
 var winNsgName = 'winJmpHostNsg'
 var winJmphostPublicIpName = 'winJmphostVmPublicIp'
+var devSpokeVmName = 'spokeDevVm'
+var prodSpokeVmName = 'spokeProdVm'
+var devSpokeVmNicName = '${devSpokeVmName}NIC'
+var prodSpokeVmNicName = '${prodSpokeVmName}NIC'
 
 resource hubVnet 'Microsoft.Network/virtualNetworks@2019-11-01' = {
   name: hubVnetName
@@ -165,6 +169,140 @@ resource prodSpokeVnetName_spokeWorkloadSubnet 'Microsoft.Network/virtualNetwork
   properties: {
     addressPrefix: prodSpokeWorkloadSubnetPrefix
   }
+}
+
+resource devSpokeVmNic 'Microsoft.Network/networkInterfaces@2019-11-01' = {
+  name: devSpokeVmNicName
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'spokeDevVmIpConfig'
+        properties: {
+          privateIPAllocationMethod: 'Dynamic'
+          subnet: {
+            id: devSpokeVnetName_spokeWorkloadSubnet.id
+          }
+          primary: true
+          privateIPAddressVersion: 'IPv4'
+        }
+      }
+    ]
+    enableAcceleratedNetworking: false
+    enableIPForwarding: false
+  }
+}
+
+resource prodSpokeVmNic 'Microsoft.Network/networkInterfaces@2019-11-01' = {
+  name: prodSpokeVmNicName
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'spokeProdVmIpConfig'
+        properties: {
+          privateIPAllocationMethod: 'Dynamic'
+          subnet: {
+            id: prodSpokeVnetName_spokeWorkloadSubnet.id
+          }
+          primary: true
+          privateIPAddressVersion: 'IPv4'
+        }
+      }
+    ]
+    enableAcceleratedNetworking: false
+    enableIPForwarding: false
+  }
+}
+
+resource devSpokeVm 'Microsoft.Compute/virtualMachines@2019-12-01' = {
+  name: devSpokeVmName
+  location: location
+  properties: {
+    hardwareProfile: {
+      vmSize: winVmSize
+    }
+    storageProfile: {
+      imageReference: {
+        publisher: 'MicrosoftWindowsServer'
+        offer: 'WindowsServer'
+        sku: windowsOSVersion
+        version: 'latest'
+      }
+      osDisk: {
+        createOption: 'FromImage'
+      }
+    }
+    osProfile: {
+      computerName: devSpokeVmName
+      adminUsername: winVmUser
+      adminPassword: winVmPassword
+      windowsConfiguration: {
+        provisionVMAgent: true
+      }
+    }
+    networkProfile: {
+      networkInterfaces: [
+        {
+          id: devSpokeVmNic.id
+        }
+      ]
+    }
+    diagnosticsProfile: {
+      bootDiagnostics: {
+        enabled: true
+        storageUri: reference(winVmStorageName, '2019-06-01').primaryEndpoints.blob
+      }
+    }
+  }
+  dependsOn: [
+    winVmStorage
+  ]
+}
+
+resource prodSpokeVm 'Microsoft.Compute/virtualMachines@2019-12-01' = {
+  name: prodSpokeVmName
+  location: location
+  properties: {
+    hardwareProfile: {
+      vmSize: winVmSize
+    }
+    storageProfile: {
+      imageReference: {
+        publisher: 'MicrosoftWindowsServer'
+        offer: 'WindowsServer'
+        sku: windowsOSVersion
+        version: 'latest'
+      }
+      osDisk: {
+        createOption: 'FromImage'
+      }
+    }
+    osProfile: {
+      computerName: prodSpokeVmName
+      adminUsername: winVmUser
+      adminPassword: winVmPassword
+      windowsConfiguration: {
+        provisionVMAgent: true
+      }
+    }
+    networkProfile: {
+      networkInterfaces: [
+        {
+          id: prodSpokeVmNic.id
+        }
+      ]
+    }
+    diagnosticsProfile: {
+      bootDiagnostics: {
+        enabled: true
+        storageUri: reference(winVmStorageName, '2019-06-01').primaryEndpoints.blob
+      }
+    }
+  }
+  dependsOn: [
+    winVmStorage
+  ]
 }
 
 resource hubVnetName_gwPeering_hubVnetName_devSpokeVnet 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2019-11-01' = if (deployVpnGateway == 'Yes') {
@@ -561,7 +699,7 @@ resource winVmStorage 'Microsoft.Storage/storageAccounts@2019-06-01' = {
     name: 'Standard_GRS'
     tier: 'Standard'
   }
-  kind: 'Storage'
+  kind: 'StorageV2'
   name: winVmStorageName
   location: location
   properties: {
