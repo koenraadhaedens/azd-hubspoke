@@ -696,7 +696,7 @@ resource winJmphostPublicIp 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
 
 resource winVmStorage 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   sku: {
-    name: 'Standard_GRS'
+    name: 'Standard_LRS'
     tier: 'Standard'
   }
   kind: 'StorageV2'
